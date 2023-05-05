@@ -2,7 +2,7 @@
 
 ## MaMMUT - Pytorch
 
-Implementation of <a href="https://arxiv.org/abs/2303.16839">MaMMUT</a>, a simple vision-encoder text-decoder architecture for multimodal tasks from Google, in Pytorch
+Implementation of <a href="https://arxiv.org/abs/2303.16839">MaMMUT</a>, a simple vision-encoder text-decoder architecture for multimodal tasks from Google, in Pytorch. <a href="https://ai.googleblog.com/2023/05/mammut-simple-vision-encoder-text.html">Blog post</a>
 
 This work is basically just a simplified CoCa. I copied the code from <a href="https://github.com/lucidrains/CoCa-pytorch">this repository</a> and made the change in the paper, which was to simply do two passes through the text encoder, one with cross attention for the generative loss, and the other without for the contrastive loss.
 
