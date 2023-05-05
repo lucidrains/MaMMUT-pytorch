@@ -131,6 +131,10 @@ mammut = MaMMUT(
 ).cuda()
 ```
 
+## Todo
+
+- [ ] offer masked mean pooling of text embeddings and mean pooling for images for contrastive latents
+
 ## Citations
 
 ```bibtex
