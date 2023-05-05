@@ -11,6 +11,9 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
+def divisible_by(numer, denom):
+    return (numer % denom) == 0
+
 # normalization
 # they use layernorm without bias, something that pytorch does not offer
 
@@ -282,8 +285,10 @@ class MaMMUT(nn.Module):
         dim,
         num_tokens,
         depth,
-        dim_latents = None,
-        image_dim = None,
+        cross_attend_every=1,
+        cross_attend_layers=None,
+        dim_latents=None,
+        image_dim=None,
         num_img_queries=256,
         dim_head=64,
         heads=8,
@@ -332,9 +337,17 @@ class MaMMUT(nn.Module):
         self.layers = nn.ModuleList([])
 
         for ind in range(depth):
+            layer = ind + 1
+
+            has_cross_attn = divisible_by(layer, cross_attend_every)
+
+            if exists(cross_attend_layers):
+                assert isinstance(cross_attend_layers, tuple)
+                has_cross_attn = layer in cross_attend_layers
+
             self.layers.append(nn.ModuleList([
                 Residual(ParallelTransformerBlock(dim=dim, dim_head=dim_head, heads=heads, ff_mult=ff_mult)),
-                Residual(CrossAttention(dim=dim, dim_head=dim_head, heads=heads, parallel_ff=True, ff_mult=ff_mult))
+                Residual(CrossAttention(dim=dim, dim_head=dim_head, heads=heads, parallel_ff=True, ff_mult=ff_mult)) if has_cross_attn else None
             ]))
 
         # to logits
@@ -424,7 +437,9 @@ class MaMMUT(nn.Module):
 
         for attn_ff, cross_attn in self.layers:
             text_tokens = attn_ff(text_tokens)
-            text_tokens = cross_attn(text_tokens, image_tokens)
+
+            if exists(cross_attn):
+                text_tokens = cross_attn(text_tokens, image_tokens)
 
         logits = self.to_logits(text_tokens)
 

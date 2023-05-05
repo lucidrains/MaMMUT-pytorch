@@ -99,6 +99,38 @@ text_embeds, image_embeds = mammut(
 ) # (4, 512), (4, 512)
 ```
 
+One of the main findings of the paper is that different tasks perform differently depending on the amount of cross attention. This repository will give you full control over how much cross attention you want to place in the network.
+
+```python
+mammut = MaMMUT(
+    dim = 512,
+    img_encoder = vit,
+    image_dim = 1024,
+    num_tokens = 20000,
+    depth = 6,
+    cross_attend_every = 2,   # say you want to cross attend only every 2 layers
+    dim_head = 64,
+    heads = 8,
+    caption_loss_weight = 1.,
+    contrastive_loss_weight = 1.
+).cuda()
+
+# or you can finely specify which layers to do cross attention
+
+mammut = MaMMUT(
+    dim = 512,
+    img_encoder = vit,
+    image_dim = 1024,
+    num_tokens = 20000,
+    depth = 6,
+    cross_attend_layers = (4, 5, 6),  # only last three layers have cross attention
+    dim_head = 64,
+    heads = 8,
+    caption_loss_weight = 1.,
+    contrastive_loss_weight = 1.
+).cuda()
+```
+
 ## Citations
 
 ```bibtex
