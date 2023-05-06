@@ -424,7 +424,7 @@ class MaMMUT(nn.Module):
         if return_loss and not exists(labels):
             text, labels = text[:, :-1], text[:, 1:]
 
-        text_embeds, text_tokens = self.embed_text(text)
+        text_embeds, _ = self.embed_text(text)
 
         image_embeds, image_tokens = self.embed_image(images=images, image_tokens=image_tokens)
 
@@ -434,6 +434,8 @@ class MaMMUT(nn.Module):
             return text_embeds, image_embeds
 
         # go through layers
+
+        text_tokens = self.token_emb(text)
 
         for attn_ff, cross_attn in self.layers:
             text_tokens = attn_ff(text_tokens)
