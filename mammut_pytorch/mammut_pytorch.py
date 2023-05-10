@@ -175,7 +175,6 @@ class ParallelTransformerBlock(nn.Module):
 
         # attention
 
-        sim = sim - sim.amax(dim=-1, keepdim=True).detach()
         attn = sim.softmax(dim=-1)
 
         # aggregate values
@@ -257,7 +256,6 @@ class CrossAttention(nn.Module):
 
         # attention
 
-        sim = sim - sim.amax(dim=-1, keepdim=True)
         attn = sim.softmax(dim=-1)
 
         # aggregate
