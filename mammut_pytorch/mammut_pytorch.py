@@ -104,23 +104,23 @@ class ParallelTransformerBlock(nn.Module):
 
         # for caching causal mask and rotary embeddings
 
-        self.register_buffer("mask", None, persistent=False)
-        self.register_buffer("pos_emb", None, persistent=False)
+        self.mask = None
+        self.pos_emb = None
 
     def get_mask(self, n, device):
         if self.mask is not None and self.mask.shape[-1] >= n:
-            return self.mask[:n, :n]
+            return self.mask[:n, :n].to(device)
 
         mask = torch.ones((n, n), device=device, dtype=torch.bool).triu(1)
-        self.register_buffer("mask", mask, persistent=False)
+        self.mask = mask
         return mask
 
     def get_rotary_embedding(self, n, device):
         if self.pos_emb is not None and self.pos_emb.shape[-2] >= n:
-            return self.pos_emb[:n]
+            return self.pos_emb[:n].to(device)
 
         pos_emb = self.rotary_emb(n, device=device)
-        self.register_buffer("pos_emb", pos_emb, persistent=False)
+        self.pos_emb = pos_emb
         return pos_emb
 
     def forward(self, x, attn_mask=None):
