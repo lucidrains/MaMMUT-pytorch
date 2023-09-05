@@ -1,6 +1,9 @@
 import torch
 from torch import einsum, nn
 import torch.nn.functional as F
+import torch.distributed as dist
+from torch.autograd import Function
+
 from einops import rearrange, repeat
 
 # helper functions
@@ -13,6 +16,50 @@ def default(val, d):
 
 def divisible_by(numer, denom):
     return (numer % denom) == 0
+
+# distributed
+
+def all_gather_variable_batch(t):
+    device, rank, world_size = t.device, dist.get_rank(), dist.get_world_size()
+
+    size = torch.tensor(t.shape[0], device = device, dtype = torch.long)
+    sizes = [torch.empty_like(size, device = device, dtype = torch.long) for i in range(world_size)]
+    dist.all_gather(sizes, size)
+
+    sizes = torch.stack(sizes)
+    max_size = sizes.amax().item()
+
+    padded_t = pad_dim_to(t, max_size, dim = 0)
+    gathered_tensors = [torch.empty_like(padded_t, device = device, dtype = padded_t.dtype) for i in range(world_size)]
+    dist.all_gather(gathered_tensors, padded_t)
+
+    gathered_tensor = torch.cat(gathered_tensors)
+    seq = torch.arange(max_size, device = device)
+
+    mask = rearrange(seq, 'j -> 1 j') < rearrange(sizes, 'i -> i 1')
+    mask = rearrange(mask, 'i j -> (i j)')
+
+    gathered_tensor = gathered_tensor[mask]
+    sizes = sizes.tolist()
+
+    return gathered_tensor, sizes
+
+class AllGather(Function):
+    @staticmethod
+    def forward(ctx, x):
+        assert dist.is_initialized() and dist.get_world_size() > 1
+        x, batch_sizes = all_gather_variable_batch(x)
+        ctx.batch_sizes = batch_sizes
+        return x
+
+    @staticmethod
+    def backward(ctx, grads):
+        batch_sizes, rank = ctx.batch_sizes, dist.get_rank()
+        grads_by_rank = grads.split(batch_sizes, dim = 0)
+        return grads_by_rank[rank]
+
+all_gather = AllGather.apply
+
 
 # normalization
 # they use layernorm without bias, something that pytorch does not offer
@@ -356,8 +403,12 @@ class MaMMUT(nn.Module):
         )
 
         # they used embedding weight tied projection out to logits, not common, but works
+
         self.to_logits[-1].weight = self.token_emb.weight
         nn.init.normal_(self.token_emb.weight, std=0.02)
+
+        # is data parallel
+        self.is_data_parallel = dist.is_initialized() and dist.get_world_size() > 1
 
     def embed_text(self, text):
         batch, device = text.shape[0], text.device
@@ -460,6 +511,13 @@ class MaMMUT(nn.Module):
 
         text_latents = self.text_to_latents(text_embeds)
         image_latents = self.img_to_latents(image_embeds)
+
+        # if data parallel, need to gather all latents from all machines
+
+        if self.is_data_parallel:
+            latents = torch.stack((text_latents, image_latents), dim = 1)
+            latents = all_gather(latents)
+            text_latents, image_latents = latents.unbind(dim = 1)
 
         # calculate contrastive loss
 
